@@ -18,7 +18,8 @@ from datasets import load_dataset
 dataset = load_dataset(CohereForAI/kaleidoscope)
 ```
 
-## Running Inference
+## 🛠️ Evaluation
+Running Inference
 ```python
 python main.py \
 --model <model_name> \
