@@ -3,7 +3,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2504.07072-b31b1b.svg)](https://arxiv.org/abs/2504.07072)
 [![HuggingFace](https://img.shields.io/badge/🤗%20Datasets-Kaleidoscope-yellow)](https://hf.co/datasets/CohereForAI/kaleidoscope)
 
-Official repository for *Kaleidoscope*, the **a comprehensive multilingual multimodal exam benchmark** evaluating VLMs across:
+Official repository for *Kaleidoscope*, **a comprehensive multilingual multimodal exam benchmark** evaluating VLMs across:
 - **18 languages** (Bengali → Spanish)
 - **14 subjects** (STEM to Humanities) 
 - **20,911 questions** (55% requiring image understanding)
