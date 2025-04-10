@@ -11,13 +11,9 @@ from model_utils import (
     initialize_model,
     query_model,
     generate_prompt,
-    fetch_cot_instruction,
     SUPPORTED_MODELS,
-    TEMPERATURE,
-    MAX_TOKENS,
 )
 
-# IMAGE_ROOT = "/leonardo_work/EUHPC_D12_071/projects/mm-exams/"
 IMAGE_ROOT = "./"
 
 
@@ -229,14 +225,12 @@ def evaluate_model(args):
     # Evaluate each question
     for t, question in tqdm(enumerate(dataset), total=len(dataset)):
         lang = question["language"]
-        system_message = fetch_cot_instruction(lang)
         # Generate prompt. Note that only local models will need image_paths separatedly.
 
         prompt, image_paths = generate_prompt(
             model_name=args.model,
             question=question,
             lang=lang,
-            instruction=system_message,
             few_shot_samples=few_shot_samples,
             method=args.method,
         )
@@ -248,8 +242,6 @@ def evaluate_model(args):
             processor,
             prompt,
             image_paths,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
         )
         question["prediction"] = prediction
         question["reasoning"] = reasoning

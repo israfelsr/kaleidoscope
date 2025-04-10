@@ -1,6 +1,7 @@
 import base64
 from PIL import Image
 import io
+import re
 
 INSTRUCTIONS_COT = {
     "en": "The following is a multiple-choice question. Think step by step and then provide your FINAL answer between the tags <ANSWER> X </ANSWER> where X is ONLY the correct letter of your choice. Do not write additional text between the tags.",
@@ -21,69 +22,6 @@ INSTRUCTIONS_COT = {
     "fa": "متن زیر یک سوال چندگزینه‌ای است. مرحله به مرحله فکر کنید و سپس پاسخ نهایی خود را بین تگ‌های <ANSWER> X </ANSWER> قرار دهید، جایی که X تنها حرف صحیح انتخاب شماست. متن اضافی بین تگ‌ها ننویسید.",
     "de": "Im Folgenden ist eine Multiple-Choice-Frage. Denken Sie Schritt für Schritt nach und geben Sie dann Ihre ENDGÜLTIGE Antwort zwischen den Tags <ANSWER> X </ANSWER> an, wobei X NUR der korrekte Buchstabe Ihrer Wahl ist. Schreiben Sie keinen zusätzlichen Text zwischen den Tags.",
     "lt": "Toliau pateikiamas klausimas su keliomis pasirinkimo galimybėmis. Mąstykite žingsnis po žingsnio ir pateikite savo GALUTINĮ atsakymą tarp žymų <ANSWER> X </ANSWER>, kur X yra TIK teisinga jūsų pasirinkta raidė. Nerašykite jokio papildomo teksto tarp žymų.",
-}
-
-system_message = {
-    "en": "You are an expert at solving multiple-choice questions. Carefully analyze the question, think step by step, and provide your FINAL answer between the tags <ANSWER> X </ANSWER>, where X is ONLY the correct choice in latin script. Do not write any additional text between the tags.",
-    "es": "Eres un experto en resolver preguntas de opción múltiple. Analiza cuidadosamente la pregunta, piensa paso a paso y proporciona tu respuesta FINAL entre las etiquetas <ANSWER> X </ANSWER>, donde X es ÚNICAMENTE la opción correcta en escritura latina. No escribas ningún texto adicional entre las etiquetas.",
-    "hi": "आप बहुविकल्पीय प्रश्नों को हल करने में विशेषज्ञ हैं। प्रश्न का सावधानीपूर्वक विश्लेषण करें, कदम दर कदम सोचें, और अपना अंतिम उत्तर <ANSWER> X </ANSWER> टैग के बीच प्रदान करें, जहां X केवल लैटिन लिपि में सही विकल्प है। टैग के बीच कोई अतिरिक्त पाठ न लिखें।",
-    "hu": "Ön szakértő a többszörös választásos kérdések megoldásában. Elemezze gondosan a kérdést, gondolkozzon lépésről lépésre, és adja meg VÉGLEGES válaszát a <ANSWER> X </ANSWER> címkék között, ahol X CSAK a helyes választás latin írásban. Ne írjon semmilyen további szöveget a címkék közé.",
-    "hr": "Vi ste stručnjak u rješavanju pitanja s višestrukim izborom. Pažljivo analizirajte pitanje, razmišljajte korak po korak i navedite svoj KONAČNI odgovor između oznaka <ANSWER> X </ANSWER>, gdje je X SAMO točan odabir u latiničnom pismu. Ne pišite nikakav dodatni tekst između oznaka.",
-    "uk": "Ви є експертом у вирішенні питань з багатовибірковою відповіддю. Уважно проаналізуйте питання, міркуйте крок за кроком і надайте свій ОСТАТОЧНИЙ відповідь між тегами <ANSWER> X </ANSWER>, де X — ЦЕ ЛИШЕ правильний вибір у латинській абетці. Не пишіть жодного додаткового тексту між тегами.",
-    "pt": "Você é um especialista em resolver questões de múltipla escolha. Analise cuidadosamente a pergunta, pense passo a passo e forneça sua resposta FINAL entre as tags <ANSWER> X </ANSWER>, onde X é APENAS a escolha correta em script latino. Não escreva nenhum texto adicional entre as tags.",
-    "bn": "আপনি বহু নির্বাচনী প্রশ্ন সমাধানে একজন বিশেষজ্ঞ। প্রশ্নটি সাবধানে বিশ্লেষণ করুন, ধাপে ধাপে চিন্তা করুন এবং আপনার চূড়ান্ত উত্তর <ANSWER> X </ANSWER> ট্যাগের মধ্যে প্রদান করুন, যেখানে X শুধুমাত্র লাতিন লিপিতে সঠিক পছন্দ। ট্যাগের মধ্যে কোনও অতিরিক্ত লেখা লিখবেন না।",
-    "te": "మీరు బహుళైచ్ఛిక ప్రశ్నలను పరిష్కరించడంలో నిపుణులు. ప్రశ్నను జాగ్రత్తగా విశ్లేషించండి, దశలవారీగా ఆలోచించండి మరియు మీ అంతిమ సమాధానాన్ని <ANSWER> X </ANSWER> ట్యాగ్ల మధ్య అందించండి, ఇక్కడ X కేవలం లాటిన్ లిపిలో సరైన ఎంపిక. ట్యాగ్ల మధ్య ఏదైనా అదనపు వచనాన్ని వ్రాయవద్దు.",
-    "ne": "तपाईं बहुविकल्पीय प्रश्नहरू समाधान गर्न विशेषज्ञ हुनुहुन्छ। प्रश्नलाई ध्यानपूर्वक विश्लेषण गर्नुहोस्, चरणबद्ध रूपमा सोच्नुहोस्, र तपाईंको अन्तिम उत्तर <ANSWER> X </ANSWER> ट्यागहरू बीचमा प्रदान गर्नुहोस्, जहाँ X केवल ल्याटिन लिपिमा सही छनौट हो। ट्यागहरू बीचमा कुनै अतिरिक्त पाठ नलेख्नुहोस्।",
-    "sr": "Ви стручњак у решавању питања са вишеструким избором. Пажљиво анализирајте питање, размишљајте корак по корак и наведите свој КОНАЧНИ одговор између ознака <ANSWER> X </ANSWER>, где је X САМО тачан избор у латиничном писму. Не пишите никакав додатни текст између ознака.",
-    "nl": "U bent een expert in het oplossen van meerkeuzevragen. Analyseer de vraag zorgvuldig, denk stap voor stap na en geef uw FINALE antwoord tussen de tags <ANSWER> X </ANSWER>, waarbij X ALLEEN de juiste keuze is in Latijns schrift. Schrijf geen extra tekst tussen de tags.",
-    "ar": "أنت خبير في حل الأسئلة متعددة الخيارات. قم بتحليل السؤال بعناية، فكر خطوة بخطوة، وقدم إجابتك النهائية بين الوسوم <ANSWER> X </ANSWER>، حيث X هو الخيار الصحيح فقط بالحروف اللاتينية. لا تكتب أي نص إضافي بين الوسوم.",
-    "ru": "Вы эксперт в решении вопросов с множественным выбором. Внимательно проанализируйте вопрос, думайте шаг за шагом и предоставьте свой ОКОНЧАТЕЛЬНЫЙ ответ между тегами <ANSWER> X </ANSWER>, где X — ТОЛЬКО правильный выбор в латинской графике. Не пишите никакого дополнительного текста между тегами.",
-    "fr": "Vous êtes un expert en résolution de questions à choix multiples. Analysez soigneusement la question, réfléchissez étape par étape et fournissez votre réponse FINALE entre les balises <ANSWER> X </ANSWER>, où X est UNIQUEMENT le bon choix en script latin. N'écrivez aucun texte supplémentaire entre les balises.",
-    "fa": "شما یک متخصص در حل سوالات چند گزینه ای هستید. سوال را به دقت تحلیل کنید، گام به گام فکر کنید و پاسخ نهایی خود را بین تگ های <ANSWER> X </ANSWER> ارائه دهید، جایی که X تنها گزینه صحیح به خط لاتین است. بین تگ ها هیچ متن اضافی ننویسید.",
-    "de": "Sie sind ein Experte im Lösen von Multiple-Choice-Fragen. Analysieren Sie die Frage sorgfältig, denken Sie Schritt für Schritt nach und geben Sie Ihre ENDGÜLTIGE Antwort zwischen den Tags <ANSWER> X </ANSWER> an, wobei X NUR die richtige Wahl in lateinischer Schrift ist. Schreiben Sie keinen zusätzlichen Text zwischen den Tags.",
-    "lt": "Jūs esate ekspertas sprendžiant daugiakartinius klausimus. Atidžiai išanalizuokite klausimą, galvokite žingsnis po žingsnio ir pateikite savo GALUTINĮ atsakymą tarp žymų <ANSWER> X </ANSWER>, kur X yra TIK teisingas pasirinkimas lotynišku raštu. Nerašykite jokio papildomo teksto tarp žymų.",
-}
-
-instruction = {
-    "en": "Shortly think step by step and provide your final answer between the tags <ANSWER> X </ANSWER> to solve the following question",
-    "es": "Piensa brevemente paso a paso y proporciona tu respuesta final entre las etiquetas <ANSWER> X </ANSWER> para resolver la siguiente pregunta",
-    "hi": "संक्षेप में कदम दर कदम सोचें और अपने अंतिम उत्तर को टैग्स <ANSWER> X </ANSWER> के बीच प्रदान करें ताकि निम्नलिखित प्रश्न हल हो सके",
-    "hu": "Gondolkodj röviden lépésről lépésre, és add meg a végső válaszodat a <ANSWER> X </ANSWER> címkék között a következő kérdés megoldásához",
-    "hr": "Kratko razmišljaj korak po korak i pruži svoj konačan odgovor između oznaka <ANSWER> X </ANSWER> kako bi riješio sljedeće pitanje",
-    "uk": "Коротко подумайте крок за кроком і надайте свою остаточну відповідь між тегами <ANSWER> X </ANSWER>, щоб вирішити наступне питання",
-    "pt": "Pense brevemente passo a passo e forneça sua resposta final entre as tags <ANSWER> X </ANSWER> para resolver a seguinte questão",
-    "bn": "সংক্ষেপে ধাপে ধাপে ভাবুন এবং নিম্নলিখিত প্রশ্নের সমাধানের জন্য আপনার চূড়ান্ত উত্তরটি <ANSWER> X </ANSWER> ট্যাগের মধ্যে প্রদান করুন",
-    "te": "సంక్షిప్తంగా అడుగు అడుగుగా ఆలోచించి, క్రింది ప్రశ్నను పరిష్కరించడానికి మీ చివరి సమాధానాన్ని <ANSWER> X </ANSWER> ట్యాగ్‌ల మధ్య ఇవ్వండి",
-    "ne": "छोटो सोच्दै चरणबद्ध रूपमा अगाडि बढ्नुहोस् र निम्न प्रश्न समाधान गर्न तपाईंको अन्तिम उत्तर <ANSWER> X </ANSWER> ट्यागहरू बीच प्रदान गर्नुहोस्",
-    "sr": "Kratko razmislite korak po korak i navedite svoj konačan odgovor između oznaka <ANSWER> X </ANSWER> kako biste rešili sledeće pitanje",
-    "nl": "Denk kort stap voor stap na en geef je uiteindelijke antwoord tussen de tags <ANSWER> X </ANSWER> om de volgende vraag op te lossen",
-    "ar": "فكر باختصار خطوة بخطوة وقدم إجابتك النهائية بين الوسوم <ANSWER> X </ANSWER> لحل السؤال التالي",
-    "ru": "Кратко подумайте шаг за шагом и укажите свой окончательный ответ между тегами <ANSWER> X </ANSWER> для решения следующего вопроса",
-    "fr": "Réfléchissez brièvement étape par étape et fournissez votre réponse finale entre les balises <ANSWER> X </ANSWER> pour résoudre la question suivante",
-    "fa": "به طور خلاصه گام به گام فکر کنید و پاسخ نهایی خود را بین برچسب‌های <ANSWER> X </ANSWER> قرار دهید تا سوال زیر حل شود",
-    "de": "Denke kurz Schritt für Schritt nach und gib deine endgültige Antwort zwischen den Tags <ANSWER> X </ANSWER> an, um die folgende Frage zu lösen",
-    "lt": "Trumpai apmąstykite žingsnis po žingsnio ir pateikite galutinį atsakymą tarp žymų <ANSWER> X </ANSWER>, kad išspręstumėte šį klausimą",
-}
-
-few_shot_instruction = {
-    "en": "Here are three examples of how to solve similar questions:",
-    "es": "Aquí tienes tres ejemplos de cómo resolver preguntas similares:",
-    "hi": "यहाँ तीन उदाहरण दिए गए हैं कि समान प्रश्नों को कैसे हल किया जाए:",
-    "hu": "Íme három példa arra, hogyan lehet hasonló kérdéseket megoldani:",
-    "hr": "Ovdje su tri primjera kako riješiti slična pitanja:",
-    "uk": "Ось три приклади того, як розв’язати подібні питання:",
-    "pt": "Aqui estão três exemplos de como resolver questões semelhantes:",
-    "bn": "এখানে তিনটি উদাহরণ দেওয়া হল কিভাবে অনুরূপ প্রশ্নগুলোর সমাধান করা যায়:",
-    "te": "ఇలాంటి ప్రశ్నలను ఎలా పరిష్కరించాలో చూపించే మూడు ఉదాహరణలు ఇవి:",
-    "ne": "यहाँ तीन उदाहरणहरू छन् जसले समान प्रश्नहरू कसरी समाधान गर्ने देखाउँछ:",
-    "sr": "Ovde su tri primera kako rešiti slična pitanja:",
-    "nl": "Hier zijn drie voorbeelden van hoe je soortgelijke vragen kunt oplossen:",
-    "ar": "إليك ثلاثة أمثلة على كيفية حل أسئلة مشابهة:",
-    "ru": "Вот три примера того, как решать похожие вопросы:",
-    "fr": "Voici trois exemples de la manière de résoudre des questions similaires :",
-    "fa": "در اینجا سه مثال آورده شده است که نشان می‌دهد چگونه می‌توان سؤالات مشابه را حل کرد:",
-    "de": "Hier sind drei Beispiele dafür, wie ähnliche Fragen gelöst werden können:",
-    "lt": "Štai trys pavyzdžiai, kaip išspręsti panašius klausimus:",
 }
 
 keywords = {
@@ -107,6 +45,7 @@ keywords = {
     "lt": {"question": "Klausimas", "options": "Pasirinkimai", "answer": "Atsakymas"},
 }
 
+# Only-English instructions for smaller models
 SYS_MESSAGE = 'You are a helpful assistant who answers multiple-choice questions. For each question, output your final answer in JSON format with the following structure:\n\n{"choice": "The correct option (e.g., A, B, C, or D)"}\n\ONLY output this format exactly. Do not include any additional text or explanations outside the JSON structure.'
 INSTRUCTION = "Output your choice in the specified JSON format."
 
@@ -158,52 +97,7 @@ def create_pangea_prompt(question, method, few_shot_samples):
     return message, images
 
 
-# Qwen2
-def create_qwen_prompt(question, method, few_shot_samples):
-    content = []
-    lang = question["language"]
-    prompt = []
-    lang_keyword = keywords[lang]
-    if question["image"] is not None:
-        content.append(
-            {"type": f"<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"}
-        )
-        images = [question["image"]]
-    else:
-        images = None
-
-    if method == "few-shot":
-        few_shot = few_shot_samples.get(lang, [])
-        if len(few_shot) != 0:
-            prompt.append(f"\n{few_shot_instruction[lang]}\n")
-            for q in few_shot:
-                prompt.append(
-                    f"\n{lang_keyword['question']}: {q['question']} \n{lang_keyword['options']}: \n"
-                )
-                for t, option in enumerate(q["options"]):
-                    index = f"{chr(65+t)}. "
-                    prompt.append(f"{index}) {option}\n")
-                prompt.append(
-                    f"\n{lang_keyword['answer']}: <ANSWER> {chr(65+q['answer'])} </ANSWER>\n"
-                )
-                prompt.append("\n---\n")
-
-    prompt.append(f"\n{instruction[lang]}\n")
-    prompt.append(
-        f"\n{lang_keyword['question']}: {question['question']} \n{lang_keyword['options']}: \n"
-    )
-    for t, option in enumerate(question["options"]):
-        index = f"{chr(65+t)}. "
-        prompt.append(f"{index}) {option}\n")
-    prompt.append(f"\n{lang_keyword['answer']}:")
-    content.append({"type": "text", "text": "".join(prompt)})
-    message = [
-        {"role": "system", "content": system_message[lang]},
-        {"role": "user", "content": content},
-    ]
-    return message, images
-
-
+# Qwen
 def create_qwen_prompt_vllm(question, method, few_shot_samples):
     # Determine the placeholder for images
     lang = question["language"]
@@ -238,91 +132,7 @@ def create_qwen_prompt_vllm(question, method, few_shot_samples):
     return message, images
 
 
-# Deep-seek
-def create_deepseek_prompt(question, method, few_shot_samples):
-    content = []
-    lang = question["language"]
-    lang_keyword = keywords[lang]
-    prompt = []
-    if question["image"] is not None:
-        prompt.append("<image>\n")
-        images = [question["image"]]
-    else:
-        images = None
-
-    if method == "few-shot":
-        few_shot = few_shot_samples.get(lang, [])
-        prompt.append(f"\n{few_shot_instruction[lang]}\n")
-        for q in few_shot:
-            prompt.append(
-                f"\n{lang_keyword['question']}: {q['question'].replace('<image>', '')} \n{lang_keyword['options']}: \n"
-            )
-            for t, option in enumerate(q["options"]):
-                index = f"{chr(65+t)}. "
-                prompt.append(f"{index}) {option.replace('<image>', '')}\n")
-            prompt.append(
-                f"\n{lang_keyword['answer']}: <ANSWER> {chr(65+q['answer'])} </ANSWER>\n"
-            )
-            prompt.append("\n---\n")
-
-    prompt.append(f"\n{instruction[lang]}\n")
-    prompt.append(
-        f"\n{lang_keyword['question']}: {question['question'].replace('<image>', '')} \n{lang_keyword['options']}: \n"
-    )
-    for t, option in enumerate(question["options"]):
-        index = f"{chr(65+t)}. "
-        prompt.append(f"{index}) {option.replace('<image>', '')}\n")
-    prompt.append(f"\n{lang_keyword['answer']}:")
-    message = [
-        {"role": "<|User|>", "content": "".join(prompt), "images": images},
-        {"role": "<|Assistant|>", "content": ""},
-    ]
-    return [system_message[lang], message], None
-
-
-# GPT
-
-# Gemini
-
-# Claude
-
-
 # Aya-Vision
-def create_aya_prompt2(question, method, few_shot_samples):
-    lang = question["language"]
-    lang_keyword = keywords[lang]
-    prompt = []
-    content = []
-    # zero shot
-    if question["image"] is not None:
-        with open(question["image"], "rb") as img_file:
-            img = Image.open(img_file).resize((512, 512))
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-
-            base64_image_url = f"data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
-        content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": base64_image_url},
-            },
-        )
-    prompt.append(f"\n{instruction[lang]}\n")
-    prompt.append(f"\n{keywords[lang]['question']}: {question['question']}\n")
-    prompt.append(f"{keywords[lang]['options']}:\n")
-    for t, option in enumerate(question["options"]):
-        index = f"{chr(65+t)}. "
-        prompt.append(f"{index}) {option}\n")
-    prompt.append(f"\n{lang_keyword['answer']}:")
-    prompt = "".join(prompt)
-    content.append({"type": "text", "text": prompt})
-    message = [
-        {"role": "system", "content": system_message[lang]},
-        {"role": "user", "content": content},
-    ]
-    return message, None
-
-
 def create_aya_prompt(question, method, few_shot_samples):
     lang = question["language"]
     lang_keyword = keywords[lang]
@@ -356,3 +166,219 @@ def create_aya_prompt(question, method, few_shot_samples):
         {"role": "user", "content": content},
     ]
     return message, None
+
+
+# Claude
+def create_claude_prompt(question, method, few_shot_samples):
+    """
+    Outputs: conversation dictionary supported by OpenAI.
+    """
+    question_text = question["question"]
+    question_image = question["image"]
+    options_list = question["options"]
+    lang = question["language"]
+    system_message = {"role": "system", "content": INSTRUCTIONS_COT[lang]}
+
+    def encode_image(image_path):
+        try:
+            with open(image_path, "rb") as image_file:
+                binary_data = image_file.read()
+                base_64_encoded_data = base64.b64encode(binary_data)
+                base64_string = base_64_encoded_data.decode("utf-8")
+                return base64_string
+        except Exception as e:
+            raise TypeError(f"Image {image_path} could not be encoded. {e}")
+
+    if question_image:
+        base64_image = encode_image(question_image)
+        question = [
+            {"type": "text", "text": question_text},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}",
+                    "detail": "low",
+                },
+            },
+        ]
+    else:
+        question = [{"type": "text", "text": question_text}]
+
+    # Parse options. Handle options with images carefully by inclusion in the conversation.
+    parsed_options = [{"type": "text", "text": "Options:\n"}]
+    only_text_option = {"type": "text", "text": "{text}"}
+    only_image_option = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/jpeg;base64,{base64_image}", "detail": "low"},
+    }
+
+    for i, option in enumerate(options_list):
+        option_indicator = f"{chr(65+i)}. "
+        if option.lower().endswith(".png"):
+            # Generating the dict format of the conversation if the option is an image
+            new_image_option = only_image_option.copy()
+            new_text_option = only_text_option.copy()
+            formated_text = new_text_option["text"].format(text=option_indicator + "\n")
+            new_text_option["text"] = formated_text
+
+            parsed_options.append(new_text_option)
+            parsed_options.append(
+                new_image_option["image_url"]["url"].format(
+                    base64_image=encode_image(option)
+                )
+            )
+
+        else:
+            # Generating the dict format of the conversation if the option is not an image
+            new_text_option = only_text_option.copy()
+            formated_text = new_text_option["text"].format(
+                text=option_indicator + option + "\n"
+            )
+            new_text_option["text"] = formated_text
+            parsed_options.append(new_text_option)
+
+    user_text = question + parsed_options
+    user_message = {"role": "user", "content": user_text}
+    messages = [system_message, user_message]
+
+    return messages, None
+
+
+# Openai
+def create_openai_prompt(question, method, few_shot_samples):
+    """
+    Outputs: conversation dictionary supported by Anthropic.
+    """
+    question_text = question["question"]
+    question_image = question["image"]
+    options_list = question["options"]
+    lang = question["language"]
+    system_message = {"role": "system", "content": INSTRUCTIONS_COT[lang]}
+
+    def resize_and_encode_image(image_path):
+        try:
+            with Image.open(image_path) as img:
+                # Resize the image to 512x512 using an appropriate resampling filter
+                resized_img = img.resize((512, 512), Image.LANCZOS)
+
+                # Save the resized image to a bytes buffer in PNG format
+                buffer = BytesIO()
+                resized_img.save(buffer, format="PNG")
+                buffer.seek(0)
+
+                # Encode the image in base64
+                base64_encoded = base64.b64encode(buffer.read()).decode("utf-8")
+                return base64_encoded
+        except Exception as e:
+            raise TypeError(f"Image {image_path} could not be processed. {e}")
+
+    if question_image:
+        base64_image = resize_and_encode_image(question_image)
+        question = [
+            {"type": "text", "text": question_text},
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": base64_image,
+                },
+            },
+        ]
+    else:
+        question = [{"type": "text", "text": question_text}]
+
+    # Parse options. Handle options with images carefully by inclusion in the conversation.
+    parsed_options = [{"type": "text", "text": "Options:\n"}]
+    only_text_option = {"type": "text", "text": "{text}"}
+
+    for i, option in enumerate(options_list):
+        option_indicator = f"{chr(65+i)}. "
+        if option.lower().endswith(".png"):
+            # Generating the dict format of the conversation if the option is an image
+            new_image_option = {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": resize_and_encode_image(option),
+                },
+            }
+            new_text_option = only_text_option.copy()
+            formated_text = new_text_option["text"].format(text=option_indicator + "\n")
+            new_text_option["text"] = formated_text
+
+            parsed_options.append(new_text_option)
+            parsed_options.append(new_image_option)
+
+        else:
+            # Generating the dict format of the conversation if the option is not an image
+            new_text_option = only_text_option.copy()
+            formated_text = new_text_option["text"].format(
+                text=option_indicator + option + "\n"
+            )
+            new_text_option["text"] = formated_text
+            parsed_options.append(new_text_option)
+
+    user_text = question + parsed_options
+    user_message = {"role": "user", "content": user_text}
+    messages = [system_message, user_message]
+
+    return messages, None  # image paths not expected for openai client.
+
+
+def format_answer(answer: str):
+    """
+    Searchs for the answer between tags <Answer>.
+
+    Returns: A zero-indexed integer corresponding to the answer.
+    """
+    pattern = r"<ANSWER>\s*([A-Za-z])\s*</ANSWER>"
+    match = re.search(pattern, answer, re.IGNORECASE)
+
+    if match:
+        # Extract and convert answer letter
+        letter = match.group(1).upper()
+        election = ord(letter) - ord("A")
+
+        # Extract reasoning by removing answer tag section
+        start, end = match.span()
+        reasoning = answer.strip()
+        # Clean multiple whitespace
+        reasoning = re.sub(r"\s+", " ", reasoning)
+    elif len(answer) == 1:
+        reasoning = answer
+        if "A" <= answer <= "Z":
+            # Convert letter to zero-indexed number
+            election = ord(answer) - ord("A")
+        elif "1" <= answer <= "9":
+            # Convert digit to zero-indexed number
+            election = int(answer) - 1
+        else:
+            election = answer
+    else:
+        # Error handling cases
+        election = "No valid answer tag found"
+        if re.search(r"<ANSWER>.*?</ANSWER>", answer):
+            election = "Answer tag exists but contains invalid format"
+        reasoning = answer.strip()
+
+    return reasoning, election
+
+
+def fetch_cot_instruction(lang: str) -> str:
+    """
+    Retrieves the CoT Instruction for the given lang.
+    """
+    if lang in INSTRUCTIONS_COT.keys():
+        return INSTRUCTIONS_COT[lang]
+    else:
+        raise ValueError(f"{lang} language code not in INSTRUCTIONS_COT")
+
+
+def fetch_few_shot_examples(lang):
+    # TODO: write function. Should output a list of dicts in the conversation format expected.
+    # I reckon we should do as parse_client_input with these. Add few-shot image examples regarding the format the input model expects.
+    raise NotImplementedError(
+        "The function to fetch few_shot examples is not yet implemented, but should return the few shot examples regarding that language."
+    )
