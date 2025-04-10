@@ -552,6 +552,20 @@ def main():
         partial(collect_stats, stats=stratified_stats), load_from_cache_file=False
     )
 
+    def correct_question(sample):
+        if (
+            sample["question"]
+            == "Cinq cartes numérotées de 1 à 5 sont alignées. А chaque tour, on échange 2 cartes. Combien de tours faut-il, au minimum, pour arriver à la ligne du dessous ?"
+        ):
+            if (
+                sample["options"][0]
+                == "celui d'un poids de 4305 kg et d'une largeur de 315 cm"
+            ):
+                sample["question"] = (
+                    "Deux panneaux de signalisation routière sont placés à l'entrée du pont de mon village. L'un marque le poids maximum autorisé et l'autre la largeur maximum autorisée. Lequel des ces camions a le droit de traverser le pont?"
+                )
+        return sample
+
     def reduce_options_to_four(example):
         if len(example["options"]) == 4:
             return example
@@ -571,7 +585,7 @@ def main():
         return example
 
     stratified_dataset = stratified_dataset.map(
-        reduce_options_to_four, load_from_cache_file=False
+        correct_question, load_from_cache_file=False
     )
 
     with open("dataset/stast.pkl", "wb") as f:
